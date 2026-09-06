@@ -1,0 +1,3 @@
+[submodule "ahsoka-piper-voice"]
+	path = ahsoka-piper-voice
+	url = git@github.com:Crazygiscool/ahsoka-piper-voice.git
