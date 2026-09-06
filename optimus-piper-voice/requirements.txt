@@ -1,0 +1,12 @@
+# Requirements for Ahsoka Piper Training
+cython
+librosa
+numpy
+onnxruntime
+pytorch-lightning
+torchmetrics
+piper-phonemize-fix>=1.2.2
+onnx-simplifier
+pydub
+faster-whisper
+tqdm
