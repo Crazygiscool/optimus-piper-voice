@@ -6,6 +6,7 @@ VENV_PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 PIPER_PYTHON="${PROJECT_ROOT}/piper-source/src/python"
 
 export PYTHONPATH="${PIPER_PYTHON}:${PYTHONPATH}"
+export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 CKPT_DIR="${PROJECT_ROOT}/checkpoints"
 BASE_CKPT="${CKPT_DIR}/lessac-medium.ckpt"
