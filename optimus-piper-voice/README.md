@@ -17,8 +17,13 @@ Run from `optimus-piper-voice/` (all scripts require `.venv` + `piper-source`):
 3. Fetch: `scripts/fetch_audio.py "<youtube-url>" <name>` → `data/raw/*.wav` (22050 Hz mono s16).
 4. Slice: `scripts/slice_audio.py [whisper-model]` → transcribes with faster-whisper,
    slices 1.5–12 s, writes `data/metadata.csv` (`ID|Text`) + `data/wavs/*.wav`.
-   **Manually QA the text** (proper nouns like Autobots/Decepticons/Cybertron/Megatron;
-   drop clips with music/SFX or non-Optimus speech).
+   For pre-cut clips (line-level cuts, e.g. movie dialogue with background) use
+   `scripts/filter_background.py` instead: it trims to the whisper word span, scores each clip
+   (logprob, no-speech, background-bleed), auto-drops <1.5 s clips, and copies flagged clips to
+   `data/review/` + a ranked `data/filter_report.csv` for a manual listen. Optional
+   `--separate-test` runs a demucs vocal-stem A/B test on chosen clips into `data/separated/`.
+   **Manually QA the text in `data/metadata.csv`** (proper nouns like Autobots/Decepticons/
+   Cybertron/Megatron; drop clips with music/SFX or non-Optimus speech).
 5. Preprocess: `scripts/preprocess.py` → phonemizes into `checkpoints/`,
    writes `config.json` + `dataset.jsonl` (cached audio in gitignored `checkpoints/cache/`),
    symlinks `data/wavs → checkpoints/wavs`.

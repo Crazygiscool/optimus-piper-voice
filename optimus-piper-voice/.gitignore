@@ -234,5 +234,10 @@ test_results/
 # Raw source audio (too large for git)
 data/raw/
 
+# Filtering work products (flag copies, separation, report)
+data/review/
+data/separated/
+data/filter_report.csv
+
 # piper source (cloned by setup.sh)
 piper-source/
