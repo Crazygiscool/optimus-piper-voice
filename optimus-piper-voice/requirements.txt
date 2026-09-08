@@ -1,5 +1,6 @@
 # Requirements for Ahsoka Piper Training
 cython
+tensorboard
 librosa
 numpy
 onnxruntime
