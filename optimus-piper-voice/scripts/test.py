@@ -25,6 +25,14 @@ from piper_train.vits.lightning import VitsModel
 
 def find_latest_checkpoint():
     ckpts = glob.glob(str(CHECKPOINTS_DIR / "lightning_logs" / "version_*" / "checkpoints" / "*.ckpt"))
+    ckpts = [c for c in ckpts if not Path(c).name.startswith("best-gen-loss-")]
+    if not ckpts:
+        return None
+    return max(ckpts, key=os.path.getmtime)
+
+
+def find_best_loss_checkpoint():
+    ckpts = glob.glob(str(CHECKPOINTS_DIR / "lightning_logs" / "version_*" / "checkpoints" / "best-gen-loss-*.ckpt"))
     if not ckpts:
         return None
     return max(ckpts, key=os.path.getmtime)
@@ -71,6 +79,12 @@ def main():
     parser = argparse.ArgumentParser(description="Test TTS model with a phrase")
     parser.add_argument("-p", "--phrase", default=DEFAULT_PHRASE, help="Text to synthesize")
     parser.add_argument("-l", "--language", default="en-us", help="Language code (default: en-us)")
+    parser.add_argument(
+        "-b",
+        "--best",
+        action="store_true",
+        help="Use the lowest-loss checkpoint (best-gen-loss-*) instead of the latest",
+    )
     args = parser.parse_args()
 
     phrase = args.phrase
@@ -89,9 +103,12 @@ def main():
     else:
         print(f"Base model not found: {BASE_CKPT}\n")
 
-    latest = find_latest_checkpoint()
-    if latest and Path(latest).resolve() != Path(BASE_CKPT).resolve():
-        synthesize(latest, "latest", phrase, language)
+    synth_ckpt = find_best_loss_checkpoint() if args.best else find_latest_checkpoint()
+    label = "best" if args.best else "latest"
+    if synth_ckpt and Path(synth_ckpt).resolve() != Path(BASE_CKPT).resolve():
+        synthesize(synth_ckpt, label, phrase, language)
+    elif args.best:
+        print("\nNo best-loss checkpoint found (best-gen-loss-*).")
     else:
         print("\nNo newer checkpoint found than base model.")
 
