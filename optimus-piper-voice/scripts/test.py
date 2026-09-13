@@ -38,6 +38,30 @@ def find_best_loss_checkpoint():
     return max(ckpts, key=os.path.getmtime)
 
 
+def resolve_checkpoint(spec: str):
+    """Resolve a --checkpoint value: existing path, path relative to the project,
+    or a basename/glob searched across lightning_logs version dirs (newest match)."""
+    p = Path(spec)
+    for candidate in (p, PROJECT_ROOT / p):
+        if candidate.exists():
+            return str(candidate.resolve())
+    pattern = p.name if p.is_absolute() else spec
+    matches = glob.glob(
+        str(CHECKPOINTS_DIR / "lightning_logs" / "version_*" / "checkpoints" / pattern)
+    )
+    if not matches and "*" not in spec:
+        matches = [
+            m
+            for m in glob.glob(
+                str(CHECKPOINTS_DIR / "lightning_logs" / "version_*" / "checkpoints" / "*.ckpt")
+            )
+            if Path(m).name == spec
+        ]
+    if not matches:
+        return None
+    return max(matches, key=os.path.getmtime)
+
+
 def text_to_phoneme_ids(text, language="en-us"):
     phonemes = piper_phonemize.phonemize_espeak(text, language)
     flat = [p for seq in phonemes for p in seq]
@@ -85,6 +109,12 @@ def main():
         action="store_true",
         help="Use the lowest-loss checkpoint (best-gen-loss-*) instead of the latest",
     )
+    parser.add_argument(
+        "-c",
+        "--checkpoint",
+        default=None,
+        help="Path or glob name of a specific checkpoint (e.g. 'epoch=36*', 'best-gen-loss-*'); overrides --best",
+    )
     args = parser.parse_args()
 
     phrase = args.phrase
@@ -103,10 +133,21 @@ def main():
     else:
         print(f"Base model not found: {BASE_CKPT}\n")
 
-    synth_ckpt = find_best_loss_checkpoint() if args.best else find_latest_checkpoint()
-    label = "best" if args.best else "latest"
+    if args.checkpoint:
+        if args.best:
+            print("(--best ignored; --checkpoint takes precedence)")
+        synth_ckpt = resolve_checkpoint(args.checkpoint)
+        label = Path(synth_ckpt).stem if synth_ckpt else "custom"
+        if not synth_ckpt:
+            print(f"\nCould not resolve checkpoint: {args.checkpoint}")
+    else:
+        synth_ckpt = find_best_loss_checkpoint() if args.best else find_latest_checkpoint()
+        label = "best" if args.best else "latest"
+
     if synth_ckpt and Path(synth_ckpt).resolve() != Path(BASE_CKPT).resolve():
         synthesize(synth_ckpt, label, phrase, language)
+    elif args.checkpoint:
+        pass
     elif args.best:
         print("\nNo best-loss checkpoint found (best-gen-loss-*).")
     else:
