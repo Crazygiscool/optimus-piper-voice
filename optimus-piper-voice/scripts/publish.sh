@@ -9,18 +9,69 @@ OUT_DIR="${PROJECT_ROOT}/published"
 HF_REPO="crazygiscool/optimus-piper-voice"
 
 export PYTHONPATH="${PIPER_PYTHON}:${PYTHONPATH}"
+export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
 
 echo "=== Publish Script ==="
 
-# 1. Find latest checkpoint
-LATEST_CKPT=$(find "${CHECKPOINTS_DIR}/lightning_logs" -name "*.ckpt" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
+# Resolve -c <path | name | glob> into a checkpoint path
+resolve_ckpt() {
+    local spec="$1"
+    local name
+    if [ -f "$spec" ]; then
+        readlink -f "$spec"
+        return 0
+    fi
+    if [ -f "${CHECKPOINTS_DIR}/$spec" ]; then
+        readlink -f "${CHECKPOINTS_DIR}/$spec"
+        return 0
+    fi
+    if [ -f "${PROJECT_ROOT}/$spec" ]; then
+        readlink -f "${PROJECT_ROOT}/$spec"
+        return 0
+    fi
+    name="$(basename "$spec")"
+    find "${CHECKPOINTS_DIR}/lightning_logs" -type f -name "$name" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | awk '{print $2}'
+}
+
+# Parse args (-c <checkpoint>)
+CKPT_ARG=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -c)
+            CKPT_ARG="$2"
+            shift 2
+            ;;
+        *)
+            echo "ERROR: Unknown argument: $1 (only -c <checkpoint> is supported)"
+            exit 1
+            ;;
+    esac
+done
+
+# 1. Pick checkpoint: explicit -c, else prefer the lowest-loss checkpoint
+if [ -n "$CKPT_ARG" ]; then
+    LATEST_CKPT="$(resolve_ckpt "$CKPT_ARG")"
+    if [ -z "$LATEST_CKPT" ]; then
+        echo "ERROR: Could not resolve checkpoint: $CKPT_ARG"
+        exit 1
+    fi
+    echo "Selected checkpoint: $(basename "$LATEST_CKPT")"
+else
+    LATEST_CKPT=$(find "${CHECKPOINTS_DIR}/lightning_logs" -name "best-gen-loss-*.ckpt" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
+    if [ -n "$LATEST_CKPT" ]; then
+        echo "Using best-loss checkpoint: $(basename "$LATEST_CKPT")"
+    else
+        LATEST_CKPT=$(find "${CHECKPOINTS_DIR}/lightning_logs" -name "*.ckpt" -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
+        if [ -n "$LATEST_CKPT" ]; then
+            echo "No best-gen-loss checkpoint; using latest: $(basename "$LATEST_CKPT")"
+        fi
+    fi
+fi
 
 if [ -z "$LATEST_CKPT" ]; then
     echo "ERROR: No checkpoint found in lightning_logs/"
     exit 1
 fi
-
-echo "Latest checkpoint: $(basename "$LATEST_CKPT")"
 
 # 2. Copy all files to published/
 mkdir -p "${OUT_DIR}"
