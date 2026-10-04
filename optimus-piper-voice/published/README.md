@@ -75,6 +75,16 @@ subject to takedown or other rights claims.
 - The model may reproduce biases or artifacts present in the base voice and
   training material.
 
+## Audio Sample
+
+Generated with the released best-loss checkpoint using this text:
+
+> Freedom is the right of all sentient beings.
+
+<audio controls src="https://huggingface.co/crazygiscool/optimus-piper-voice/resolve/main/optimus-sample.wav"></audio>
+
+[Download the WAV sample](https://huggingface.co/crazygiscool/optimus-piper-voice/resolve/main/optimus-sample.wav).
+
 ## Usage
 
 Download `optimus-final.onnx` and its companion
