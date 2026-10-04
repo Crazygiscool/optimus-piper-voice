@@ -7,6 +7,7 @@ PIPER_PYTHON="${PROJECT_ROOT}/piper-source/src/python"
 CHECKPOINTS_DIR="${PROJECT_ROOT}/checkpoints"
 OUT_DIR="${PROJECT_ROOT}/published"
 HF_REPO="crazygiscool/optimus-piper-voice"
+GH_REPO="Crazygiscool/optimus-piper-voice"
 
 export PYTHONPATH="${PIPER_PYTHON}:${PYTHONPATH}"
 export TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1
@@ -73,12 +74,10 @@ if [ -z "$LATEST_CKPT" ]; then
     exit 1
 fi
 
-# 2. Copy all files to published/
+# 2. Copy model files to published/
 mkdir -p "${OUT_DIR}"
 cp "$LATEST_CKPT" "${OUT_DIR}/optimus-final.ckpt"
 cp "${CHECKPOINTS_DIR}/config.json" "${OUT_DIR}/optimus-final.onnx.json"
-cp "${CHECKPOINTS_DIR}/dataset.jsonl" "${OUT_DIR}/dataset.jsonl"
-cp "${CHECKPOINTS_DIR}/dataset.jsonl.gz" "${OUT_DIR}/dataset.jsonl.gz"
 cp "${PROJECT_ROOT}/published/README.md" "${OUT_DIR}/README.md" 2>/dev/null || true
 rm -f "${OUT_DIR}/optimus.onnx" "${OUT_DIR}/optimus.onnx.ckpt" "${OUT_DIR}/optimus.onnx.json"
 
@@ -87,7 +86,10 @@ echo ""
 echo "--- Exporting to ONNX ---"
 "${VENV_PYTHON}" -c "
 import sys
+from functools import partial
+import torch
 sys.path.insert(0, '${PIPER_PYTHON}')
+torch.onnx.export = partial(torch.onnx.export, dynamo=False)
 from piper_train.export_onnx import main
 sys.argv = ['export_onnx', '${OUT_DIR}/optimus-final.ckpt', '${OUT_DIR}/optimus-final.onnx']
 main()
@@ -119,8 +121,6 @@ files = [
     ('optimus-final.onnx', 'ONNX model'),
     ('optimus-final.onnx.json', 'ONNX config'),
     ('optimus-final.ckpt', 'PyTorch checkpoint'),
-    ('dataset.jsonl', 'Training dataset'),
-    ('dataset.jsonl.gz', 'Compressed dataset'),
     ('README.md', 'Model card'),
 ]
 
@@ -140,16 +140,33 @@ for filename, description in files:
 print('Upload complete!')
 "
 
-# 6. Commit checkpoint to GitHub (large files tracked via LFS)
+# 6. Publish model artifacts as GitHub release assets
 echo ""
-echo "--- Committing to GitHub ---"
-cd "${PROJECT_ROOT}"
-git add published/ || true
-git add checkpoints/epoch=*.ckpt || true
-git commit -m "Publish: $(basename "$LATEST_CKPT")" || echo "Nothing to commit"
-git push || echo "Push failed (not critical)"
+echo "--- Publishing to GitHub ---"
+if ! command -v gh &> /dev/null; then
+    echo "ERROR: GitHub CLI (gh) is required to publish release assets"
+    exit 1
+fi
+
+RELEASE_TAG="optimus-$(basename "$LATEST_CKPT" .ckpt)"
+RELEASE_TITLE="Optimus Prime Piper voice - $(basename "$LATEST_CKPT" .ckpt)"
+RELEASE_ASSETS=(
+    "${OUT_DIR}/optimus-final.ckpt"
+    "${OUT_DIR}/optimus-final.onnx"
+    "${OUT_DIR}/optimus-final.onnx.json"
+)
+
+if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" &> /dev/null; then
+    gh release upload "${RELEASE_TAG}" "${RELEASE_ASSETS[@]}" --clobber --repo "${GH_REPO}"
+else
+    gh release create "${RELEASE_TAG}" "${RELEASE_ASSETS[@]}" \
+        --title "${RELEASE_TITLE}" \
+        --notes "Piper voice model export. Training dataset files are not included." \
+        --repo "${GH_REPO}"
+fi
 
 echo ""
 echo "Done."
 echo "  Hugging Face: https://huggingface.co/${HF_REPO}"
+echo "  GitHub: https://github.com/${GH_REPO}/releases/tag/${RELEASE_TAG}"
 echo "  Local files: ${OUT_DIR}/"

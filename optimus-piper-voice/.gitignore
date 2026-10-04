@@ -220,6 +220,7 @@ __marimo__/
 # Large model files (hosted on HuggingFace)
 published/optimus-final.ckpt
 published/optimus-final.onnx
+published/optimus-final.onnx.json
 
 # Training artifacts
 checkpoints/lightning_logs/
